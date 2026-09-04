@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DAY_RANGE_OPTIONS, SOURCE_OPTIONS, useAoi } from '../state/AoiContext';
+import { DAY_RANGE_OPTIONS, HOUR_RANGE_OPTIONS, SOURCE_OPTIONS, useAoi } from '../state/AoiContext';
 import { MODULES } from '../lib/modules';
 import type { LatLng, ModuleId, SourceId } from '../types';
 import DrawAoiMap from '../components/DrawAoiMap';
@@ -8,6 +8,7 @@ import AoiFormModal from '../components/AoiFormModal';
 import FireMapCanvas from '../components/FireMapCanvas';
 import Legend from '../components/Legend';
 import BottomTimeline from '../components/BottomTimeline';
+import TimePicker from '../components/TimePicker';
 import { formatHa } from '../lib/geo';
 import { compassLabel } from '../lib/geo';
 
@@ -15,9 +16,10 @@ const DAY_LABEL: Record<number, string> = { 1: '24 hrs', 2: '48 hrs', 3: '3 days
 
 export default function FieldManagement() {
   const {
-    aois, activeAoi, hotspots, inAoiHotspots, nearbyHotspots,
-    status, error, fetchedAt, dayRange, sources, weather, endDate,
-    createAoi, deleteAoi, renameAoi, setActiveAoiId, setDayRange, setSources, setEndDate, refetch,
+    aois, activeAoi, hotspots, inAoiHotspots, nearbyHotspots, dayCountsInAoi, dayCountsAll, hotspotsForDate,
+    status, error, fetchedAt, dayRange, hourRange, hourMode, customFrom, customTo, sources, weather,
+    createAoi, deleteAoi, renameAoi, setActiveAoiId, setDayRange, setHourRange, setHourMode, setCustomFrom, setCustomTo,
+    setSources, refetch,
   } = useAoi();
   const navigate = useNavigate();
 
@@ -37,34 +39,23 @@ export default function FieldManagement() {
   const [renameValue, setRenameValue] = useState('');
 
   const activeModule = MODULES.find((m) => m.id === module)!;
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const minDate = useMemo(() => new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10), []);
   const includesNearby = module === 'impact';
+  // "All" shows the Detection-window-trimmed recent view (light, for performance).
+  // Picking a specific date on the timeline switches to that whole day instead — the
+  // trim only makes sense against "now", not a day you've deliberately gone back to.
   const scopedHotspots = includesNearby ? hotspots : inAoiHotspots;
 
-  // Continuous calendar range for the selected window (length === dayRange, capped at 5 —
-  // the FIRMS Area API's real day_range limit for these sources) so the timeline always
-  // follows the actual dates instead of only the days that happened to have detections.
-  const timelineDates = useMemo(() => {
-    const end = endDate ?? today;
-    const endMs = new Date(`${end}T00:00:00Z`).getTime();
-    const arr: string[] = [];
-    for (let i = dayRange - 1; i >= 0; i--) {
-      arr.push(new Date(endMs - i * 86400000).toISOString().slice(0, 10));
-    }
-    return arr;
-  }, [endDate, today, dayRange]);
-
-  const dateCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    scopedHotspots.forEach((h) => { counts[h.acqDate] = (counts[h.acqDate] ?? 0) + 1; });
-    return counts;
-  }, [scopedHotspots]);
+  // Real per-date counts over the whole fetched day-range window (not the hour-trimmed
+  // view) — cheap (no distance calc), so this is what makes the timeline a genuine date
+  // picker instead of showing zeroes for every day except the currently windowed one.
+  const dateCounts = includesNearby ? dayCountsAll : dayCountsInAoi;
+  const timelineDates = useMemo(() => Object.keys(dateCounts).sort(), [dateCounts]);
 
   const mapHotspots = useMemo(() => {
-    const base = selectedDate === 'all' ? scopedHotspots : scopedHotspots.filter((h) => h.acqDate === selectedDate);
-    return base;
-  }, [scopedHotspots, selectedDate]);
+    if (selectedDate === 'all') return scopedHotspots;
+    const day = hotspotsForDate(selectedDate); // annotated on demand, just that one day
+    return includesNearby ? day : day.filter((h) => h.inAoi);
+  }, [scopedHotspots, selectedDate, hotspotsForDate, includesNearby]);
 
   const legendItems = useMemo(() => {
     if (module === 'impact') {
@@ -180,26 +171,60 @@ export default function FieldManagement() {
       </div>
 
       <div className="mb-4">
-        <label className="block text-xs font-semibold text-ink-soft mb-2">End date <span className="font-normal text-ink-faint">(window ends here)</span></label>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            value={endDate ?? today}
-            max={today}
-            min={minDate}
-            onChange={(e) => { setEndDate(e.target.value === today ? null : e.target.value); setSelectedDate('all'); }}
-            className="flex-1 border border-line rounded-xl px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
-          />
-          {endDate && (
-            <button
-              onClick={() => { setEndDate(null); setSelectedDate('all'); }}
-              className="text-[11px] font-semibold text-[#ec3013] px-2 py-1.5 rounded-xl hover:bg-canvas transition-colors shrink-0"
-            >
-              Today
-            </button>
-          )}
+        <label className="block text-xs font-semibold text-ink-soft mb-2">Detection window</label>
+        <div className="flex gap-1.5 mb-2">
+          <button
+            onClick={() => setHourMode('relative')}
+            className={`flex-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+              hourMode === 'relative' ? 'bg-[#ec3013] border-[#ec3013] text-white' : 'border-line text-ink-soft hover:border-ink-faint hover:bg-canvas'
+            }`}
+          >
+            Most recent
+          </button>
+          <button
+            onClick={() => setHourMode('custom')}
+            className={`flex-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+              hourMode === 'custom' ? 'bg-[#ec3013] border-[#ec3013] text-white' : 'border-line text-ink-soft hover:border-ink-faint hover:bg-canvas'
+            }`}
+          >
+            Custom hours
+          </button>
         </div>
-        <p className="text-[10.5px] text-ink-faint mt-1.5 leading-relaxed">Fetches the {DAY_LABEL[dayRange].toLowerCase()} window ending on this date. NRT archive typically covers the last few months — very old dates may return no data.</p>
+
+        {hourMode === 'relative' ? (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {HOUR_RANGE_OPTIONS.map((h) => (
+                <button
+                  key={h}
+                  onClick={() => setHourRange(h)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+                    hourRange === h ? 'bg-[#ec3013] border-[#ec3013] text-white' : 'border-line text-ink-soft hover:border-ink-faint hover:bg-canvas'
+                  }`}
+                >
+                  {h}h
+                </button>
+              ))}
+            </div>
+            <p className="text-[10.5px] text-ink-faint mt-1.5 leading-relaxed">
+              Showing {hotspots.length} detection{hotspots.length === 1 ? '' : 's'} from the last {hourRange}h, relative to the
+              most recent one in view — keeps the map light instead of plotting every point at once. Pick a date on the
+              timeline below to browse a specific day instead.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5">
+              <TimePicker value={customFrom} onChange={setCustomFrom} className="flex-1" />
+              <span className="text-ink-faint text-xs shrink-0">to</span>
+              <TimePicker value={customTo} onChange={setCustomTo} className="flex-1" />
+            </div>
+            <p className="text-[10.5px] text-ink-faint mt-1.5 leading-relaxed">
+              Showing {hotspots.length} detection{hotspots.length === 1 ? '' : 's'} between {customFrom} and {customTo} WIB, on
+              the most recent day in view.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="mb-4">
@@ -358,7 +383,13 @@ export default function FieldManagement() {
               )}
             </div>
 
-            <BottomTimeline dates={timelineDates} counts={dateCounts} selected={selectedDate} onSelect={setSelectedDate} />
+            <BottomTimeline
+              dates={timelineDates}
+              counts={dateCounts}
+              allCount={scopedHotspots.length}
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+            />
 
             <button
               onClick={() => navigate('/analytics')}

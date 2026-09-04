@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Aoi, Hotspot, LatLng, SourceId } from '../types';
-import { annotateHotspots, polygonAreaHa, polygonBbox, polygonCentroid } from '../lib/geo';
+import { annotateHotspots, countByDate, polygonAreaHa, polygonBbox, polygonCentroid } from '../lib/geo';
+import { acqTimestampMs, wibDateAndMinute } from '../lib/format';
 import { fetchFires, fetchWeather, type Weather } from '../lib/api';
 import { loadActiveAoiId, loadAois, saveActiveAoiId, saveAois } from '../lib/storage';
 import { isKalimantanDemoAoi } from '../data/kalimantanAoi';
@@ -11,6 +12,14 @@ import type { FiresResponse } from '../types';
 // (6+ returns "Invalid day range. Expects [1..5]").
 export const DAY_RANGE_OPTIONS = [1, 2, 3, 5] as const;
 export const MAX_DAY_RANGE = 5;
+// Client-side trim on top of the day-range fetch, so the map doesn't have to render
+// a full day (or more) of points at once. "Latest" is anchored to the most recent
+// detection actually present in the fetched data, not wall-clock time, so it keeps
+// working for the frozen demo dataset and for older end-dates alike.
+export const HOUR_RANGE_OPTIONS = [1, 2, 6, 12, 24] as const;
+export const DEFAULT_HOUR_RANGE = 2;
+export const DEFAULT_CUSTOM_FROM = '13:00';
+export const DEFAULT_CUSTOM_TO = '14:00';
 export const SOURCE_OPTIONS: { id: SourceId; label: string }[] = [
   { id: 'VIIRS_SNPP_NRT', label: 'VIIRS (Suomi NPP)' },
   { id: 'VIIRS_NOAA20_NRT', label: 'VIIRS (NOAA-20)' },
@@ -24,10 +33,19 @@ interface AoiContextValue {
   hotspots: Hotspot[]; // all hotspots in the padded bbox, annotated with inAoi + distance
   inAoiHotspots: Hotspot[];
   nearbyHotspots: Hotspot[]; // outside AOI but within fetched bbox
+  rawHotspots: Hotspot[]; // everything in the fetched day-range window, unannotated, before any hour trim
+  dayCountsInAoi: Record<string, number>; // per-date counts over rawHotspots — cheap, feeds the timeline
+  dayCountsAll: Record<string, number>;
+  hotspotsForDate: (date: string) => Hotspot[]; // annotated hotspots for one specific date (not the whole window)
   status: 'idle' | 'loading' | 'error';
   error: string | null;
   fetchedAt: string | null;
   dayRange: number;
+  hourRange: number;
+  hourMode: 'relative' | 'custom';
+  customFrom: string; // HH:MM, WIB
+  customTo: string; // HH:MM, WIB
+  customDate: string | null; // WIB date the custom range is applied to (most recent one present)
   sources: SourceId[];
   endDate: string | null; // YYYY-MM-DD, null = latest available
   createAoi: (name: string, ring: LatLng[]) => Aoi;
@@ -35,6 +53,10 @@ interface AoiContextValue {
   renameAoi: (id: string, name: string) => void;
   setActiveAoiId: (id: string | null) => void;
   setDayRange: (n: number) => void;
+  setHourRange: (n: number) => void;
+  setHourMode: (m: 'relative' | 'custom') => void;
+  setCustomFrom: (t: string) => void;
+  setCustomTo: (t: string) => void;
   setSources: (s: SourceId[]) => void;
   setEndDate: (d: string | null) => void;
   refetch: () => void;
@@ -43,6 +65,60 @@ interface AoiContextValue {
 }
 
 const AoiContext = createContext<AoiContextValue | null>(null);
+
+type DemoSeed = FiresResponse & { demoRange?: { from: string; to: string } };
+
+/** Slices the frozen Kalimantan dataset down to the requested day-range window, same as a live FIRMS query would. */
+function filterDemoHotspots(seed: DemoSeed, dayRange: number, endDate: string | null): Hotspot[] {
+  const to = endDate || seed.demoRange?.to || seed.hotspots[seed.hotspots.length - 1]?.acqDate;
+  if (!to) return seed.hotspots;
+  const toDate = new Date(`${to}T00:00:00Z`);
+  const fromDate = new Date(toDate);
+  fromDate.setUTCDate(fromDate.getUTCDate() - (dayRange - 1));
+  const from = fromDate.toISOString().slice(0, 10);
+  return seed.hotspots.filter((h) => h.acqDate >= from && h.acqDate <= to);
+}
+
+/** Trims to the last N hours, anchored to the most recent detection actually present. */
+function windowByHours(hotspots: Hotspot[], hours: number): Hotspot[] {
+  if (!hotspots.length) return hotspots;
+  let latest = -Infinity;
+  for (const h of hotspots) {
+    const ts = acqTimestampMs(h.acqDate, h.acqTime);
+    if (ts > latest) latest = ts;
+  }
+  const cutoff = latest - hours * 3600 * 1000;
+  return hotspots.filter((h) => acqTimestampMs(h.acqDate, h.acqTime) >= cutoff);
+}
+
+function toMinuteOfDay(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** Most recent WIB calendar date present in the data — the day a custom clock-time range applies to. */
+function latestWibDate(hotspots: Hotspot[]): string | null {
+  let latest: string | null = null;
+  for (const h of hotspots) {
+    const { date } = wibDateAndMinute(h.acqDate, h.acqTime);
+    if (!latest || date > latest) latest = date;
+  }
+  return latest;
+}
+
+/** Trims to a specific clock-time range (WIB) on the most recent day present, e.g. 13:00-14:00. */
+function windowByCustomRange(hotspots: Hotspot[], from: string, to: string): Hotspot[] {
+  if (!hotspots.length) return hotspots;
+  const date = latestWibDate(hotspots);
+  const fromMin = toMinuteOfDay(from);
+  const toMin = toMinuteOfDay(to);
+  return hotspots.filter((h) => {
+    const wib = wibDateAndMinute(h.acqDate, h.acqTime);
+    if (wib.date !== date) return false;
+    if (fromMin <= toMin) return wib.minuteOfDay >= fromMin && wib.minuteOfDay < toMin;
+    return wib.minuteOfDay >= fromMin || wib.minuteOfDay < toMin; // overnight wrap, e.g. 22:00-03:00
+  });
+}
 
 export function AoiProvider({ children }: { children: React.ReactNode }) {
   const [aois, setAois] = useState<Aoi[]>(() => loadAois());
@@ -54,6 +130,10 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
     return aois.find((a) => isKalimantanDemoAoi(a.name))?.id ?? null;
   });
   const [dayRange, setDayRange] = useState<number>(1);
+  const [hourRange, setHourRange] = useState<number>(DEFAULT_HOUR_RANGE);
+  const [hourMode, setHourMode] = useState<'relative' | 'custom'>('relative');
+  const [customFrom, setCustomFrom] = useState<string>(DEFAULT_CUSTOM_FROM);
+  const [customTo, setCustomTo] = useState<string>(DEFAULT_CUSTOM_TO);
   const [sources, setSources] = useState<SourceId[]>(['VIIRS_SNPP_NRT', 'MODIS_NRT']);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [rawHotspots, setRawHotspots] = useState<Hotspot[]>([]);
@@ -72,12 +152,14 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     if (activeAoi.isDemo || isKalimantanDemoAoi(activeAoi.name)) {
-      // Frozen dataset (real FIRMS detections, last ~7 days) so the demo doesn't
-      // depend on live FIRMS availability/rate limits. Other AOIs still fetch live.
-      const seed = kalimantanSeed as unknown as FiresResponse;
+      // Frozen dataset (real FIRMS detections, last ~5 days) so the demo doesn't
+      // depend on live FIRMS availability/rate limits. Sliced to the selected
+      // day-range window (default: latest day only) to keep the map light.
+      // Other AOIs still fetch live.
+      const seed = kalimantanSeed as unknown as DemoSeed;
       setStatus('loading');
       setError(null);
-      setRawHotspots(seed.hotspots);
+      setRawHotspots(filterDemoHotspots(seed, dayRange, endDate));
       setFetchedAt(seed.fetchedAt);
       setStatus('idle');
       return;
@@ -102,13 +184,45 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAoi?.id, dayRange, sources.join(','), endDate]);
 
+  const windowedHotspots = useMemo(
+    () =>
+      hourMode === 'custom'
+        ? windowByCustomRange(rawHotspots, customFrom, customTo)
+        : windowByHours(rawHotspots, hourRange),
+    [rawHotspots, hourMode, hourRange, customFrom, customTo]
+  );
+
+  const customDate = useMemo(
+    () => (hourMode === 'custom' ? latestWibDate(rawHotspots) : null),
+    [hourMode, rawHotspots]
+  );
+
   const hotspots = useMemo(() => {
     if (!activeAoi) return [];
-    return annotateHotspots(activeAoi.ring, rawHotspots);
-  }, [activeAoi, rawHotspots]);
+    return annotateHotspots(activeAoi.ring, windowedHotspots);
+  }, [activeAoi, windowedHotspots]);
 
   const inAoiHotspots = useMemo(() => hotspots.filter((h) => h.inAoi), [hotspots]);
   const nearbyHotspots = useMemo(() => hotspots.filter((h) => !h.inAoi), [hotspots]);
+
+  // Per-date counts over the whole fetched day-range window, before the hour/custom
+  // trim — feeds the timeline. Boolean-only point-in-polygon (no nearest-boundary
+  // distance calc), so it stays cheap even at "5 days" (thousands of points).
+  const dayCountsInAoi = useMemo(
+    () => (activeAoi ? countByDate(activeAoi.ring, rawHotspots, 'inAoi') : {}),
+    [activeAoi, rawHotspots]
+  );
+  const dayCountsAll = useMemo(() => countByDate([], rawHotspots, 'all'), [rawHotspots]);
+
+  // Full annotation (with distance-to-boundary) computed on demand for just one day's
+  // points, not the whole window — same cost as the default recent-window view.
+  const hotspotsForDate = useCallback(
+    (date: string) => {
+      if (!activeAoi) return [];
+      return annotateHotspots(activeAoi.ring, rawHotspots.filter((h) => h.acqDate === date));
+    },
+    [activeAoi, rawHotspots]
+  );
 
   const centroid = useMemo(() => (activeAoi ? polygonCentroid(activeAoi.ring) : null), [activeAoi]);
 
@@ -160,10 +274,19 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
     hotspots,
     inAoiHotspots,
     nearbyHotspots,
+    rawHotspots,
+    dayCountsInAoi,
+    dayCountsAll,
+    hotspotsForDate,
     status,
     error,
     fetchedAt,
     dayRange,
+    hourRange,
+    hourMode,
+    customFrom,
+    customTo,
+    customDate,
     sources,
     endDate,
     createAoi,
@@ -171,6 +294,10 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
     renameAoi,
     setActiveAoiId,
     setDayRange,
+    setHourRange,
+    setHourMode,
+    setCustomFrom,
+    setCustomTo,
     setSources,
     setEndDate,
     refetch,

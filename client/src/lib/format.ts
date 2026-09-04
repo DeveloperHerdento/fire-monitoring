@@ -1,3 +1,9 @@
+/** FIRMS acq_date + acq_time (UTC, HHMM) as a real timestamp — for windowing/sorting by recency. */
+export function acqTimestampMs(acqDate: string, acqTime: string): number {
+  const t = acqTime.padStart(4, '0');
+  return new Date(`${acqDate}T${t.slice(0, 2)}:${t.slice(2)}:00Z`).getTime();
+}
+
 export function formatAcqTime(acqTime: string): string {
   const t = acqTime.padStart(4, '0');
   return `${t.slice(0, 2)}:${t.slice(2)} UTC`;
@@ -14,6 +20,15 @@ function toWibDate(acqDate: string, acqTime: string): Date {
   const t = acqTime.padStart(4, '0');
   const utc = new Date(`${acqDate}T${t.slice(0, 2)}:${t.slice(2)}:00Z`);
   return new Date(utc.getTime() + 7 * 3600 * 1000);
+}
+
+/** WIB calendar date (YYYY-MM-DD) and minute-of-day (0-1439) — for custom clock-time windows. */
+export function wibDateAndMinute(acqDate: string, acqTime: string): { date: string; minuteOfDay: number } {
+  const d = toWibDate(acqDate, acqTime);
+  return {
+    date: d.toISOString().slice(0, 10),
+    minuteOfDay: d.getUTCHours() * 60 + d.getUTCMinutes(),
+  };
 }
 
 export function formatWibTime(acqDate: string, acqTime: string): string {
