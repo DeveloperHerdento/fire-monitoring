@@ -4,6 +4,8 @@
 @import "leaflet.markercluster/dist/MarkerCluster.css";
 @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-heading: "Manrope", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
@@ -15,6 +17,7 @@
   --color-line: #e4e5e8;
   --color-line-soft: #edeef0;
   --color-canvas: #f6f6f7;
+  --color-surface: #ffffff;
 
   --color-fire-high: #ae1800;
   --color-fire-nominal: #ec3013;
@@ -26,17 +29,49 @@
   --color-fire-900: #7c1405;
 }
 
+:root.dark {
+  --color-ink: #edeef0;
+  --color-ink-soft: #a9acb3;
+  --color-ink-faint: #7d8087;
+  --color-line: #2c2e33;
+  --color-line-soft: #232529;
+  --color-canvas: #191a1d;
+  --color-surface: #212327;
+
+  --color-fire-50: #2c1913;
+  --color-fire-100: #3a2018;
+  --color-fire-900: #ffcfc2;
+}
+
 html, body, #root { height: 100%; }
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
 body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--color-ink);
-  background: #fff;
+  background: var(--color-surface);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
 
 .leaflet-container { background: var(--color-canvas); font-family: var(--font-body); }
 .leaflet-control-attribution { font-size: 10px; }
+
+/* Leaflet chrome (controls, popups, draw toolbar) ships hardcoded light colors — retint for dark mode. */
+.dark .leaflet-control-zoom a,
+.dark .leaflet-bar a,
+.dark .leaflet-draw-toolbar a,
+.dark .leaflet-draw-actions a,
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-color: var(--color-line);
+}
+.dark .leaflet-bar a { border-bottom-color: var(--color-line); }
+.dark .leaflet-control-attribution { background: rgba(33, 35, 39, 0.75); color: var(--color-ink-faint); }
+.dark .leaflet-control-attribution a { color: var(--color-ink-soft); }
 
 ::selection { background: var(--color-fire-100); color: var(--color-fire-900); }
 
