@@ -112,7 +112,7 @@ export default function FieldManagement() {
         {aois.length > 0 && (
           <button
             onClick={() => setMode('view')}
-            className="absolute top-20 right-4 sm:right-6 z-[500] bg-white border border-line rounded-xl px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink shadow"
+            className="absolute top-20 right-4 sm:right-6 z-[500] bg-surface border border-line rounded-xl px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink shadow"
           >
             Cancel — back to map
           </button>
@@ -136,7 +136,7 @@ export default function FieldManagement() {
         <select
           value={module}
           onChange={(e) => { setModule(e.target.value as ModuleId); setSelectedDate('all'); }}
-          className="w-full border border-line rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
+          className="w-full border border-line rounded-xl px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
         >
           {MODULES.map((m) => (
             <option key={m.id} value={m.id}>{m.full}</option>
@@ -146,8 +146,8 @@ export default function FieldManagement() {
       <p className="text-[11.5px] text-ink-faint leading-relaxed mb-4">{activeModule.sub}</p>
 
       {module === 'smoke' && weather && (
-        <div className="bg-[#fff2ee] rounded-xl px-3 py-2.5 mb-4 text-xs">
-          <div className="font-bold text-[#7c1405] mb-1">Live wind at AOI</div>
+        <div className="bg-fire-50 rounded-xl px-3 py-2.5 mb-4 text-xs">
+          <div className="font-bold text-fire-900 mb-1">Live wind at AOI</div>
           <div className="flex justify-between text-ink-soft"><span>Wind</span><strong className="text-ink">{compassLabel(weather.windDirectionDeg ?? 0)} · {weather.windSpeedKmh} km/h</strong></div>
           <div className="flex justify-between text-ink-soft"><span>Temp / Humidity</span><strong className="text-ink">{weather.tempC}°C · {weather.humidityPct}%</strong></div>
         </div>
@@ -266,7 +266,7 @@ export default function FieldManagement() {
             <button
               onClick={() => setActiveAoiId(a.id)}
               className={`w-full text-left rounded-xl px-3.5 py-2.5 border transition-colors ${
-                activeAoi?.id === a.id ? 'bg-[#fff2ee] border-[#ffc4b8] shadow-sm' : 'border-line hover:border-ink-faint hover:bg-canvas'
+                activeAoi?.id === a.id ? 'bg-fire-50 border-[#ffc4b8] shadow-sm' : 'border-line hover:border-ink-faint hover:bg-canvas'
               }`}
             >
               {renamingId === a.id ? (
@@ -296,7 +296,7 @@ export default function FieldManagement() {
               ⋯
             </button>
             {openMenuFor === a.id && (
-              <div className="absolute right-0 top-9 z-30 bg-white border border-line rounded-xl shadow-lg w-36 py-1">
+              <div className="absolute right-0 top-9 z-30 bg-surface border border-line rounded-xl shadow-lg w-36 py-1">
                 <button
                   onClick={() => { setRenamingId(a.id); setRenameValue(a.name); setOpenMenuFor(null); }}
                   className="w-full text-left px-3 py-1.5 text-xs text-ink-soft hover:bg-canvas"
@@ -305,7 +305,7 @@ export default function FieldManagement() {
                 </button>
                 <button
                   onClick={() => { deleteAoi(a.id); setOpenMenuFor(null); }}
-                  className="w-full text-left px-3 py-1.5 text-xs text-[#ae1800] hover:bg-canvas"
+                  className="w-full text-left px-3 py-1.5 text-xs text-[#ae1800] dark:text-[#ff8a65] hover:bg-canvas"
                 >
                   Delete
                 </button>
@@ -320,7 +320,7 @@ export default function FieldManagement() {
 
   return (
     <div className="flex flex-col sm:flex-row h-full min-h-[480px]">
-      <aside className="hidden sm:flex sm:flex-col w-72 shrink-0 border-r border-line overflow-y-auto bg-white">
+      <aside className="hidden sm:flex sm:flex-col w-72 shrink-0 border-r border-line overflow-y-auto bg-surface">
         <div className="flex border-b border-line">
           <button
             onClick={() => setSideTab('layer')}
@@ -364,20 +364,20 @@ export default function FieldManagement() {
             </div>
             <div className="absolute top-4 left-4 right-4 sm:right-auto z-[400] flex flex-col gap-2">
               {status === 'loading' && (
-                <div className="bg-white rounded-xl shadow border border-line px-3 py-1.5 text-xs font-semibold text-ink-soft w-fit">Fetching live hotspots…</div>
+                <div className="bg-surface rounded-xl shadow border border-line px-3 py-1.5 text-xs font-semibold text-ink-soft w-fit">Fetching live hotspots…</div>
               )}
               {status === 'error' && (
-                <div className="bg-white rounded-xl shadow border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 max-w-xs">
+                <div className="bg-surface rounded-xl shadow border border-red-200 dark:border-red-900/50 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 max-w-xs">
                   {error} <button onClick={refetch} className="underline ml-1">retry</button>
                 </div>
               )}
               {status === 'idle' && fetchedAt && (
-                <div className="bg-white rounded-xl shadow border border-line px-3 py-1.5 text-xs font-semibold text-ink-soft w-fit">
+                <div className="bg-surface rounded-xl shadow border border-line px-3 py-1.5 text-xs font-semibold text-ink-soft w-fit">
                   {inAoiHotspots.length} in AOI · {nearbyHotspots.length} nearby · synced {new Date(fetchedAt).toLocaleTimeString()}
                 </div>
               )}
               {(module === 'burned' || module === 'smoke') && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl shadow px-3 py-1.5 text-[11px] font-semibold text-amber-800 w-fit max-w-[280px]">
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-xl shadow px-3 py-1.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300 w-fit max-w-[280px]">
                   Estimate derived from live hotspot{module === 'smoke' ? ' + wind' : ''} data — not a validated {module === 'burned' ? 'burn-scar' : 'aerosol-imagery'} product.
                 </div>
               )}
@@ -393,7 +393,7 @@ export default function FieldManagement() {
 
             <button
               onClick={() => navigate('/analytics')}
-              className="hidden sm:block absolute bottom-20 right-4 z-[400] bg-white border border-line rounded-xl px-3.5 py-2 text-xs font-semibold text-ink-soft hover:text-ink shadow"
+              className="hidden sm:block absolute bottom-20 right-4 z-[400] bg-surface border border-line rounded-xl px-3.5 py-2 text-xs font-semibold text-ink-soft hover:text-ink shadow"
             >
               View full analytics →
             </button>
@@ -410,9 +410,9 @@ export default function FieldManagement() {
                 <div className="absolute inset-0 bg-black/40" />
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="relative w-full max-h-[80vh] overflow-y-auto bg-white rounded-t-2xl shadow-2xl"
+                  className="relative w-full max-h-[80vh] overflow-y-auto bg-surface rounded-t-2xl shadow-2xl"
                 >
-                  <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-line">
+                  <div className="sticky top-0 bg-surface flex items-center justify-between px-4 py-3 border-b border-line">
                     <div className="flex gap-4">
                       <button onClick={() => setSideTab('layer')} className={`font-[Manrope] font-bold text-sm ${sideTab === 'layer' ? 'text-ink' : 'text-ink-faint'}`}>Layer</button>
                       <button onClick={() => setSideTab('history')} className={`font-[Manrope] font-bold text-sm ${sideTab === 'history' ? 'text-ink' : 'text-ink-faint'}`}>History</button>

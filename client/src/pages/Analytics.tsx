@@ -168,7 +168,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      <div className="bg-white border border-line rounded-2xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-4">
+      <div className="bg-surface border border-line rounded-2xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-4">
         <FilterGroup label="Status">
           {(['all', 'in', 'nearby'] as StatusFilter[]).map((v) => (
             <FilterPill key={v} active={statusFilter === v} onClick={() => setStatusFilter(v)}>
@@ -190,7 +190,7 @@ export default function Analytics() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="border border-line rounded-full px-3 py-1.5 text-xs font-semibold text-ink-soft bg-white focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
+            className="border border-line rounded-full px-3 py-1.5 text-xs font-semibold text-ink-soft bg-surface focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
           >
             <option value="all">All sources</option>
             {sourceOptions.map((s) => (
@@ -207,7 +207,7 @@ export default function Analytics() {
             placeholder="e.g. 10"
             value={minFrp}
             onChange={(e) => setMinFrp(e.target.value)}
-            className="w-24 border border-line rounded-full px-3 py-1.5 text-xs font-semibold text-ink bg-white focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
+            className="w-24 border border-line rounded-full px-3 py-1.5 text-xs font-semibold text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
           />
         </div>
 
@@ -221,7 +221,7 @@ export default function Analytics() {
         )}
       </div>
 
-      <div className="bg-white border border-line rounded-2xl shadow-sm overflow-hidden overflow-x-auto">
+      <div className="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
           <thead>
             <tr className="text-left text-[10.5px] uppercase tracking-wide text-ink-faint bg-canvas">
@@ -249,7 +249,7 @@ export default function Analytics() {
             {pagedRows.map((h) => (
               <tr key={h.id} className="border-t border-line-soft hover:bg-canvas transition-colors">
                 <td className="px-3 py-2.5">
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${h.inAoi ? 'bg-[#fff2ee] text-[#ae1800]' : 'bg-line-soft text-ink-soft'}`}>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${h.inAoi ? 'bg-fire-50 text-fire-900' : 'bg-line-soft text-ink-soft'}`}>
                     {h.inAoi ? 'IN AOI' : 'NEARBY'}
                   </span>
                 </td>
@@ -274,7 +274,7 @@ export default function Analytics() {
             <select
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-              className="border border-line rounded-full px-3.5 py-2 text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
+              className="border border-line rounded-full px-3.5 py-2 text-sm font-semibold bg-surface focus:outline-none focus:ring-2 focus:ring-[#ec3013]/30 focus:border-[#ec3013] transition-shadow"
             >
               {[10, 25, 50, 100].map((n) => (
                 <option key={n} value={n}>{n} / page</option>
@@ -334,7 +334,7 @@ function paginationItems(current: number, total: number): (number | '…')[] {
 
 function Card({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
       <div className="font-semibold text-sm mb-0.5">{title}</div>
       <div className="text-xs text-ink-faint mb-3">{sub}</div>
       {children}

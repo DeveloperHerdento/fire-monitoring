@@ -86,7 +86,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex flex-col gap-4 lg:h-[420px]">
-          <div className="bg-white border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200 lg:flex-1 lg:flex lg:flex-col lg:justify-center">
+          <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200 lg:flex-1 lg:flex lg:flex-col lg:justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint mb-2.5">AOI Summary</div>
             <Row k="Area" v={formatHa(activeAoi.areaHa)} />
             <Row k="Vertices" v={String(activeAoi.ring.length)} />
@@ -99,7 +99,7 @@ export default function Dashboard() {
               </>
             )}
           </div>
-          <div className="bg-white border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200 lg:flex-1 lg:flex lg:flex-col lg:justify-center">
+          <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200 lg:flex-1 lg:flex lg:flex-col lg:justify-center">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint mb-2.5">Confidence Breakdown</div>
             <div className="flex h-2 rounded-full overflow-hidden mb-2.5 bg-line-soft">
               {(['high', 'nominal', 'low'] as const).map((t) => (
@@ -117,7 +117,7 @@ export default function Dashboard() {
       </div>
 
       <h2 className="font-bold text-lg mb-3 mt-2">Recent Detections</h2>
-      <div className="mb-8 bg-white border border-line rounded-2xl shadow-sm overflow-hidden">
+      <div className="mb-8 bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
         {inAoiHotspots.length === 0 && (
           <div className="py-8 text-center text-ink-faint text-xs">No hotspots detected in this AOI for the selected time window.</div>
         )}

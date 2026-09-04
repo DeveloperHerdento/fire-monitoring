@@ -73,7 +73,7 @@ export default function Pricing() {
     <div className="px-4 sm:px-8 py-8 sm:py-12 pb-16 max-w-[1500px] mx-auto">
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto mb-10">
-        <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-[#ffe0d9] text-[#ae1800] px-2.5 py-1 rounded-full mb-3">
+        <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-fire-100 text-fire-900 px-2.5 py-1 rounded-full mb-3">
           Pricing
         </span>
         <h1 className="text-2xl sm:text-3xl font-extrabold mb-2">Fire monitoring, sized to how much land you watch</h1>
@@ -84,7 +84,7 @@ export default function Pricing() {
 
       {/* Initial Plan (required first step) */}
       <div className="mb-4">
-        <div className="relative rounded-2xl border-2 border-dashed border-[#ec3013]/40 bg-[#fff6f4] p-6 sm:p-8">
+        <div className="relative rounded-2xl border-2 border-dashed border-[#ec3013]/40 bg-fire-50 p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
             <div className="flex-1">
               <div className="flex items-baseline gap-2 mb-1">
@@ -127,8 +127,8 @@ export default function Pricing() {
             key={plan.id}
             className={`relative flex flex-col h-full rounded-2xl border p-6 transition-all duration-200 ${
               plan.highlight
-                ? 'border-[#ec3013] shadow-xl bg-white ring-1 ring-[#ec3013]'
-                : 'border-line bg-white shadow-sm hover:shadow-md'
+                ? 'border-[#ec3013] shadow-xl bg-surface ring-1 ring-[#ec3013]'
+                : 'border-line bg-surface shadow-sm hover:shadow-md'
             }`}
           >
             {/* Highlight Badge */}
