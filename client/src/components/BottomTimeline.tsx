@@ -12,7 +12,7 @@ export default function BottomTimeline({ dates, counts, allCount, selected, onSe
   if (dates.length === 0) return null;
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-[400] bg-white/95 backdrop-blur rounded-2xl shadow-lg border border-line px-4 py-2.5 flex items-center gap-1 overflow-x-auto">
+    <div className="absolute bottom-4 left-4 right-4 z-[400] bg-surface/95 backdrop-blur rounded-2xl shadow-lg border border-line px-4 py-2.5 flex items-center gap-1 overflow-x-auto">
       <button
         onClick={() => onSelect('all')}
         className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
@@ -33,7 +33,7 @@ export default function BottomTimeline({ dates, counts, allCount, selected, onSe
               disabled={!hasData}
               title={hasData ? `${count} detection${count === 1 ? '' : 's'}` : 'No detections this day'}
               className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
-                !hasData ? 'text-line cursor-default' : selected === d ? 'text-[#ae1800]' : 'text-ink-faint hover:text-ink'
+                !hasData ? 'text-line cursor-default' : selected === d ? 'text-[#ae1800] dark:text-[#ff8a65]' : 'text-ink-faint hover:text-ink'
               }`}
             >
               <span className={selected === d && hasData ? 'border-b-2 border-[#ec3013] pb-0.5 font-bold' : 'pb-0.5'}>{formatAcqDate(d)}</span>

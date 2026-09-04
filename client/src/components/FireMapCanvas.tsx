@@ -154,7 +154,7 @@ export default function FireMapCanvas({ ring, hotspots, module, showBoundary, op
         const statusText =
           h.distanceToBoundaryKm === undefined ? '—' : h.inAoi ? 'Inside AOI' : `${h.distanceToBoundaryKm} km from AOI`;
         const row = (label: string, value: string) =>
-          `<span style="color:#8a8d94">${label}</span><span style="color:#16171b;font-weight:600">${value}</span>`;
+          `<span style="color:var(--color-ink-faint)">${label}</span><span style="color:var(--color-ink);font-weight:600">${value}</span>`;
         marker.bindPopup(
           `<div style="font-family:Inter,sans-serif;font-size:12px;min-width:190px">` +
             `<div style="font-weight:800;font-size:13px;margin-bottom:6px;color:${tierColor(h.confidence)}">${confidenceLabel(h.confidence)} confidence</div>` +

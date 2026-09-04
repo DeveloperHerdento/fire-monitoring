@@ -51,7 +51,7 @@ export default function TimePicker({ value, onChange, className }: Props) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`w-full flex items-center justify-center gap-1.5 border rounded-full px-3 py-1.5 text-xs font-semibold bg-white transition-colors ${
+        className={`w-full flex items-center justify-center gap-1.5 border rounded-full px-3 py-1.5 text-xs font-semibold bg-surface transition-colors ${
           open ? 'border-[#ec3013] ring-2 ring-[#ec3013]/25' : 'border-line hover:border-ink-faint'
         }`}
       >
@@ -64,7 +64,7 @@ export default function TimePicker({ value, onChange, className }: Props) {
       </button>
 
       {open && (
-        <div className="absolute z-1000 top-[calc(100%+8px)] left-0 bg-white rounded-2xl shadow-xl border border-line p-2 flex gap-1 w-28 origin-top-left animate-[fadeIn_.12s_ease-out]">
+        <div className="absolute z-1000 top-[calc(100%+8px)] left-0 bg-surface rounded-2xl shadow-xl border border-line p-2 flex gap-1 w-28 origin-top-left animate-[fadeIn_.12s_ease-out]">
           <TimeColumn items={HOURS_12} selected={hour} format={(n) => String(n).padStart(2, '0')} onSelect={(n) => set({ hour: n })} />
           <div className="w-px bg-line-soft my-1" />
           <TimeColumn items={[false, true]} selected={pm} format={(v) => (v ? 'PM' : 'AM')} onSelect={(v) => set({ pm: v })} />

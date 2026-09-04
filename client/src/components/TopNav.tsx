@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAoi } from '../state/AoiContext';
+import { useTheme } from '../lib/theme';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `text-sm font-semibold transition-colors ${isActive ? 'text-[#ec3013]' : 'text-ink-soft hover:text-ink'}`;
@@ -9,19 +10,20 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function TopNav() {
   const { activeAoi, inAoiHotspots, status } = useAoi();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white border-b border-line">
+      <header className="sticky top-0 z-50 bg-surface border-b border-line">
         <div className="h-14 sm:h-15 px-4 sm:px-8 flex items-center gap-4 sm:gap-6">
           <span className="flex items-baseline gap-1.5 font-[Manrope] font-extrabold text-base sm:text-lg tracking-tight text-ink shrink-0">
             RATRA <span className="text-[11px] font-semibold text-ink-faint tracking-wider">MAPS</span>
-            <span className="ml-1 text-[10px] font-bold bg-[#ffe0d9] text-[#ae1800] px-1.5 py-0.5 rounded-full">FIRE</span>
+            <span className="ml-1 text-[10px] font-bold bg-fire-100 text-fire-900 px-1.5 py-0.5 rounded-full">FIRE</span>
           </span>
 
           <div className="hidden sm:flex bg-canvas p-0.5 rounded-full text-xs shrink-0">
             <span className="px-3 py-1.5 text-ink-faint cursor-not-allowed select-none">Agriculture</span>
-            <span className="px-3 py-1.5 rounded-full bg-white shadow-sm font-semibold text-ink">Fire Monitoring</span>
+            <span className="px-3 py-1.5 rounded-full bg-surface shadow-sm font-semibold text-ink">Fire Monitoring</span>
           </div>
 
           <nav className="hidden sm:flex items-center gap-6 ml-2">
@@ -41,6 +43,17 @@ export default function TopNav() {
                 <span className="text-ink-faint">· {inAoiHotspots.length} active</span>
               </div>
             )}
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-canvas text-ink-soft transition-colors"
+            >
+              {theme === 'dark' ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+              )}
+            </button>
             <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-canvas text-ink-soft transition-colors">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a5 5 0 0 0-5 5v3.5c0 1-.4 2-1.2 2.8L5 15h14l-.8-.7c-.8-.8-1.2-1.8-1.2-2.8V8a5 5 0 0 0-5-5z"></path><path d="M9.5 18a2.5 2.5 0 0 0 5 0"></path></svg>
             </button>
@@ -58,7 +71,7 @@ export default function TopNav() {
         )}
       </header>
 
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 h-16 bg-white border-t border-line flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 h-16 bg-surface border-t border-line flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <NavLink to="/" end className={tabClass}>
           <DashIcon /> Dashboard
         </NavLink>

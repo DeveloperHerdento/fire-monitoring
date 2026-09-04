@@ -81,7 +81,7 @@ export default function DrawAoiMap({ onDrawChange, onSave, onCancel, hasDraft }:
     <div className="relative h-full min-h-[420px]">
       <div ref={elRef} className="absolute inset-0" />
       {hasDraft && (
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[500] bg-white rounded-xl shadow-lg border border-line px-4 py-3 flex items-center gap-3">
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[500] bg-surface rounded-xl shadow-lg border border-line px-4 py-3 flex items-center gap-3">
           <span className="text-sm text-ink-soft">AOI drawn — ready to save.</span>
           <button onClick={onCancel} className="text-sm font-semibold text-ink-soft hover:text-ink px-3 py-1.5 rounded-lg border border-line">
             Discard
@@ -92,7 +92,7 @@ export default function DrawAoiMap({ onDrawChange, onSave, onCancel, hasDraft }:
         </div>
       )}
       {!hasDraft && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] bg-white/95 backdrop-blur rounded-lg shadow border border-line px-4 py-2 text-xs font-medium text-ink-soft">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] bg-surface/95 backdrop-blur rounded-lg shadow border border-line px-4 py-2 text-xs font-medium text-ink-soft">
           Use the polygon or rectangle tool (top-left) to draw your Area of Interest
         </div>
       )}

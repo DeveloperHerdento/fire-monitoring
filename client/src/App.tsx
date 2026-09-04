@@ -10,7 +10,7 @@ export default function App() {
   return (
     <AoiProvider>
       <HashRouter>
-        <div className="min-h-screen h-screen flex flex-col bg-white text-ink overflow-hidden">
+        <div className="min-h-screen h-screen flex flex-col bg-surface text-ink overflow-hidden">
           <TopNav />
           <main className="flex-1 min-h-0 overflow-y-auto pb-16 sm:pb-0">
             <Routes>
