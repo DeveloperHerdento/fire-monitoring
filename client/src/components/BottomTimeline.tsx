@@ -1,16 +1,15 @@
 import { formatAcqDate } from '../lib/format';
 
 interface Props {
-  dates: string[]; // continuous calendar range for the selected window, ascending, max = MAX_DAY_RANGE
+  dates: string[]; // dates that actually have data in the fetched window, ascending
   counts: Record<string, number>;
+  allCount: number; // count shown on the "All" pill — the current (possibly windowed) view, not necessarily sum(counts)
   selected: string | 'all';
   onSelect: (d: string | 'all') => void;
 }
 
-export default function BottomTimeline({ dates, counts, selected, onSelect }: Props) {
+export default function BottomTimeline({ dates, counts, allCount, selected, onSelect }: Props) {
   if (dates.length === 0) return null;
-
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="absolute bottom-4 left-4 right-4 z-[400] bg-white/95 backdrop-blur rounded-2xl shadow-lg border border-line px-4 py-2.5 flex items-center gap-1 overflow-x-auto">
@@ -20,7 +19,7 @@ export default function BottomTimeline({ dates, counts, selected, onSelect }: Pr
           selected === 'all' ? 'bg-[#ec3013] text-white' : 'text-ink-faint hover:text-ink'
         }`}
       >
-        All ({total})
+        All ({allCount})
       </button>
       <span className="w-px h-4 bg-line shrink-0 mx-1" />
       <div className="flex flex-1 items-center justify-center gap-1 min-w-0">

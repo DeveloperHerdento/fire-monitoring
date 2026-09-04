@@ -41,6 +41,21 @@ export function annotateHotspots(ring: LatLng[], hotspots: Hotspot[]): Hotspot[]
   });
 }
 
+/**
+ * Per-date detection counts — cheap boolean point-in-polygon only (no nearest-boundary
+ * distance calc), so it stays fast over a full multi-day fetch window. Use this for
+ * summaries like a timeline; use annotateHotspots when you need distanceToBoundaryKm too.
+ */
+export function countByDate(ring: LatLng[], hotspots: Hotspot[], scope: 'inAoi' | 'all'): Record<string, number> {
+  const poly = scope === 'inAoi' && ring.length >= 3 ? ringToGeoJsonPolygon(ring) : null;
+  const counts: Record<string, number> = {};
+  for (const h of hotspots) {
+    if (poly && !turf.booleanPointInPolygon(turf.point([h.lng, h.lat]), poly)) continue;
+    counts[h.acqDate] = (counts[h.acqDate] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export function formatHa(ha: number): string {
   if (ha >= 100) return `${ha.toFixed(0)} ha`;
   return `${ha.toFixed(2)} ha`;

@@ -45,3 +45,14 @@ h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
   50% { opacity: 0.35; }
 }
 .live-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tp-col { scrollbar-width: thin; scrollbar-color: var(--color-fire-low) transparent; }
+.tp-col::-webkit-scrollbar { width: 5px; }
+.tp-col::-webkit-scrollbar-track { background: transparent; }
+.tp-col::-webkit-scrollbar-thumb { background: var(--color-fire-low); border-radius: 999px; }
+.tp-col::-webkit-scrollbar-thumb:hover { background: var(--color-fire-nominal); }
