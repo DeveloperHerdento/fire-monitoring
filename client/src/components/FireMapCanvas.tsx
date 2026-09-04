@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
+import 'leaflet.markercluster';
 import type { Hotspot, LatLng, ModuleId } from '../types';
 import { tierColor, confidenceLabel, formatWibDate, formatWibTime } from '../lib/format';
 import { fireFootprintByTier, smokePlumes } from '../lib/geo';
@@ -20,10 +21,35 @@ interface Props {
 const radiusForTier = (tier: string) => (tier === 'high' ? 9 : tier === 'nominal' ? 7 : 6);
 const FOOTPRINT_COLOR: Record<string, string> = { high: '#ae1800', nominal: '#ec3013', low: '#ffc4b8' };
 
+const CLUSTER_TEXT_COLOR: Record<string, string> = { high: '#fff', nominal: '#fff', low: '#7c1405' };
+
+// Clustered dot at low zoom shows a count instead of thousands of individual
+// points; spidering apart into real markers as you zoom into their true locations.
+// Color reflects the highest confidence tier present among the clustered points
+// (same red scale as individual markers), size reflects how many are grouped.
+function clusterIcon(cluster: L.MarkerCluster) {
+  const count = cluster.getChildCount();
+  const children = cluster.getAllChildMarkers() as Array<L.Layer & { __confidence?: string }>;
+  let tier: 'high' | 'nominal' | 'low' = 'low';
+  for (const child of children) {
+    if (child.__confidence === 'high') { tier = 'high'; break; }
+    if (child.__confidence === 'nominal') tier = 'nominal';
+  }
+  const size = count < 10 ? 32 : count < 100 ? 40 : 50;
+  const bg = tierColor(tier);
+  const fg = CLUSTER_TEXT_COLOR[tier];
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${count < 100 ? 12 : 13}px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)">${count}</div>`,
+    className: 'fm-cluster-icon',
+    iconSize: L.point(size, size),
+  });
+}
+
 export default function FireMapCanvas({ ring, hotspots, module, showBoundary, opacity, weather, interactive = true, className, onReady }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const groupRef = useRef<L.LayerGroup | null>(null);
+  const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const fittedRef = useRef(false);
 
   useEffect(() => {
@@ -37,12 +63,22 @@ export default function FireMapCanvas({ ring, hotspots, module, showBoundary, op
       keyboard: interactive,
       touchZoom: interactive,
       attributionControl: interactive,
+      // Canvas instead of per-marker SVG DOM nodes — needed to keep pan/zoom smooth
+      // once a dataset has thousands of hotspots (e.g. the Kalimantan demo AOI).
+      renderer: L.canvas({ padding: 0.5 }),
     }).setView([-2.5, 118], 5);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri',
       maxZoom: 18,
     }).addTo(map);
     groupRef.current = L.layerGroup().addTo(map);
+    clusterRef.current = L.markerClusterGroup({
+      maxClusterRadius: 60,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      disableClusteringAtZoom: 12,
+      iconCreateFunction: clusterIcon,
+    }).addTo(map);
     mapRef.current = map;
     onReady?.(map);
     setTimeout(() => map.invalidateSize(), 150);
@@ -56,8 +92,10 @@ export default function FireMapCanvas({ ring, hotspots, module, showBoundary, op
   useEffect(() => {
     const map = mapRef.current;
     const group = groupRef.current;
-    if (!map || !group) return;
+    const cluster = clusterRef.current;
+    if (!map || !group || !cluster) return;
     group.clearLayers();
+    cluster.clearLayers();
     const areaOpacity = opacity / 100;
 
     if (ring && ring.length >= 3) {
@@ -111,7 +149,8 @@ export default function FireMapCanvas({ ring, hotspots, module, showBoundary, op
           weight: 2,
           fillColor: tierColor(h.confidence),
           fillOpacity: (module === 'smoke' ? 0.75 : 0.92) * areaOpacity,
-        });
+        }) as L.CircleMarker & { __confidence?: string };
+        marker.__confidence = h.confidence;
         const statusText =
           h.distanceToBoundaryKm === undefined ? '—' : h.inAoi ? 'Inside AOI' : `${h.distanceToBoundaryKm} km from AOI`;
         const row = (label: string, value: string) =>
@@ -129,7 +168,7 @@ export default function FireMapCanvas({ ring, hotspots, module, showBoundary, op
             `</div>` +
             `</div>`
         );
-        marker.addTo(group);
+        cluster.addLayer(marker);
       });
     }
   }, [ring, hotspots, module, showBoundary, opacity, weather]);
