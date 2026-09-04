@@ -1,5 +1,3 @@
-import { Fragment } from 'react';
-
 interface PlanHead {
   id: string;
   name: string;

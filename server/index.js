@@ -183,5 +183,11 @@ app.get('/api/weather', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8787;
-app.listen(PORT, () => console.log(`[fire-monitoring] API proxy listening on :${PORT}`));
+// Vercel imports this file as a serverless function (module.exports = app) and
+// calls it directly per-request — it must not also bind a local port there.
+if (require.main === module) {
+  const PORT = process.env.PORT || 8787;
+  app.listen(PORT, () => console.log(`[fire-monitoring] API proxy listening on :${PORT}`));
+}
+
+module.exports = app;
