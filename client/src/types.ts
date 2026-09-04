@@ -37,6 +37,8 @@ export interface Aoi {
   createdAt: string;
   ring: LatLng[]; // polygon ring, [lat, lng][], closed or open
   areaHa: number;
+  /** Served from a frozen local dataset instead of a live FIRMS fetch (demo AOI). */
+  isDemo?: boolean;
 }
 
 export type SourceId = 'VIIRS_SNPP_NRT' | 'VIIRS_NOAA20_NRT' | 'VIIRS_NOAA21_NRT' | 'MODIS_NRT';

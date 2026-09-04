@@ -3,6 +3,9 @@ import type { Aoi, Hotspot, LatLng, SourceId } from '../types';
 import { annotateHotspots, polygonAreaHa, polygonBbox, polygonCentroid } from '../lib/geo';
 import { fetchFires, fetchWeather, type Weather } from '../lib/api';
 import { loadActiveAoiId, loadAois, saveActiveAoiId, saveAois } from '../lib/storage';
+import { isKalimantanDemoAoi } from '../data/kalimantanAoi';
+import kalimantanSeed from '../data/kalimantanSeed.json';
+import type { FiresResponse } from '../types';
 
 // FIRMS Area API caps day_range at 5 for these NRT sources — confirmed empirically
 // (6+ returns "Invalid day range. Expects [1..5]").
@@ -43,7 +46,13 @@ const AoiContext = createContext<AoiContextValue | null>(null);
 
 export function AoiProvider({ children }: { children: React.ReactNode }) {
   const [aois, setAois] = useState<Aoi[]>(() => loadAois());
-  const [activeAoiId, setActiveAoiIdState] = useState<string | null>(() => loadActiveAoiId());
+  const [activeAoiId, setActiveAoiIdState] = useState<string | null>(() => {
+    const saved = loadActiveAoiId();
+    if (saved) return saved;
+    // First run on a device: default straight into the Kalimantan demo AOI so
+    // there's something to show without requiring the user to draw one first.
+    return aois.find((a) => isKalimantanDemoAoi(a.name))?.id ?? null;
+  });
   const [dayRange, setDayRange] = useState<number>(1);
   const [sources, setSources] = useState<SourceId[]>(['VIIRS_SNPP_NRT', 'MODIS_NRT']);
   const [endDate, setEndDate] = useState<string | null>(null);
@@ -60,6 +69,17 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
   const refetch = useCallback(() => {
     if (!activeAoi) {
       setRawHotspots([]);
+      return;
+    }
+    if (activeAoi.isDemo || isKalimantanDemoAoi(activeAoi.name)) {
+      // Frozen dataset (real FIRMS detections, last ~7 days) so the demo doesn't
+      // depend on live FIRMS availability/rate limits. Other AOIs still fetch live.
+      const seed = kalimantanSeed as unknown as FiresResponse;
+      setStatus('loading');
+      setError(null);
+      setRawHotspots(seed.hotspots);
+      setFetchedAt(seed.fetchedAt);
+      setStatus('idle');
       return;
     }
     setStatus('loading');
