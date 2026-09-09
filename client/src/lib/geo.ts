@@ -93,22 +93,43 @@ export interface PlumeCone {
   polygon: GeoJSON.Feature<GeoJSON.Polygon>;
 }
 
-/**
- * Builds a downwind plume cone from each hotspot using live wind direction/speed.
- * Wind direction is meteorological ("from"), so the plume travels at +180deg.
- */
-export function smokePlumes(hotspots: Hotspot[], windFromDeg: number, windSpeedKmh: number): PlumeCone[] {
-  const bearing = (windFromDeg + 180) % 360;
-  const lengthKm = Math.min(18, Math.max(2.5, windSpeedKmh * 0.7));
+export interface WindSample {
+  lat: number;
+  lng: number;
+  windDirectionDeg: number;
+  windSpeedKmh: number;
+}
+
+/** Nearest wind sample to a point — a cheap stand-in for interpolation, fine at grid-cell spacing. */
+function nearestWind(lat: number, lng: number, grid: WindSample[]): WindSample | null {
+  let best: WindSample | null = null;
+  let bestDist = Infinity;
+  for (const g of grid) {
+    const d = (g.lat - lat) ** 2 + (g.lng - lng) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = g;
+    }
+  }
+  return best;
+}
+
+export function smokePlumes(hotspots: Hotspot[], windGrid: WindSample[]): PlumeCone[] {
   const halfAngle = 20;
-  return hotspots.map((h) => {
+  const cones: PlumeCone[] = [];
+  for (const h of hotspots) {
+    const wind = nearestWind(h.lat, h.lng, windGrid);
+    if (!wind) continue;
+    const bearing = (wind.windDirectionDeg + 180) % 360;
+    const lengthKm = Math.min(18, Math.max(2.5, wind.windSpeedKmh * 0.7));
     const origin: [number, number] = [h.lng, h.lat];
     const tip = turf.destination(origin, lengthKm, bearing, { units: 'kilometers' }).geometry.coordinates;
     const left = turf.destination(origin, lengthKm * 0.85, bearing - halfAngle, { units: 'kilometers' }).geometry.coordinates;
     const right = turf.destination(origin, lengthKm * 0.85, bearing + halfAngle, { units: 'kilometers' }).geometry.coordinates;
     const polygon = turf.polygon([[origin, left, tip, right, origin]]);
-    return { hotspotId: h.id, polygon };
-  });
+    cones.push({ hotspotId: h.id, polygon });
+  }
+  return cones;
 }
 
 export function compassLabel(deg: number): string {

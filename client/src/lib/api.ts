@@ -40,3 +40,41 @@ export async function fetchWeather(lat: number, lng: number): Promise<Weather> {
   if (!res.ok) throw new Error('Failed to fetch wind/weather data');
   return res.json();
 }
+
+export interface WindGridPoint {
+  lat: number;
+  lng: number;
+  windSpeedKmh: number | null;
+  windDirectionDeg: number | null;
+}
+
+/** Wind for many points in one call — used to build a per-location wind grid instead of one value for the whole map. */
+export async function fetchWeatherGrid(points: [number, number][]): Promise<WindGridPoint[]> {
+  if (points.length === 0) return [];
+  const qs = points.map(([lat, lng]) => `${lat.toFixed(2)}:${lng.toFixed(2)}`).join(',');
+  const res = await fetch(`/api/weather-grid?points=${encodeURIComponent(qs)}`);
+  if (!res.ok) throw new Error('Failed to fetch wind grid');
+  const data = await res.json();
+  return data.points;
+}
+
+export interface WindGridRecord {
+  header: {
+    lo1: number; la1: number; lo2: number; la2: number;
+    dx: number; dy: number; nx: number; ny: number;
+    parameterNumber: number;
+    [key: string]: unknown;
+  };
+  data: number[];
+}
+
+/** U/V wind-component records in wind-js/GRIB2-JSON shape, for the animated leaflet-velocity layer. */
+export async function fetchWindGrid(bbox: [number, number, number, number]): Promise<WindGridRecord[]> {
+  const qs = new URLSearchParams({ bbox: bbox.join(',') });
+  const res = await fetch(`/api/wind-grid?${qs.toString()}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch wind grid (${res.status})`);
+  }
+  return res.json();
+}

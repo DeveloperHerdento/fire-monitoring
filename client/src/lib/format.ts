@@ -43,6 +43,16 @@ export function formatWibDate(acqDate: string, acqTime: string): string {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 }
 
+/** Same UTC+7 shift as toWibDate, but from a raw timestamp — for simulation frame labels. */
+export function formatWibDateTime(ms: number): string {
+  const d = new Date(ms + 7 * 3600 * 1000);
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${day} ${month} ${hh}:${mm}`;
+}
+
 export function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.round(diffMs / 60000);
