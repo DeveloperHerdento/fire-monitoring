@@ -1,26 +1,35 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DAY_RANGE_OPTIONS, HOUR_RANGE_OPTIONS, SOURCE_OPTIONS, useAoi } from '../state/AoiContext';
 import { MODULES } from '../lib/modules';
-import type { LatLng, ModuleId, SourceId } from '../types';
+import type { Hotspot, LatLng, ModuleId, SourceId } from '../types';
 import DrawAoiMap from '../components/DrawAoiMap';
 import AoiFormModal from '../components/AoiFormModal';
 import FireMapCanvas from '../components/FireMapCanvas';
 import Legend from '../components/Legend';
 import BottomTimeline from '../components/BottomTimeline';
 import TimePicker from '../components/TimePicker';
-import { formatHa } from '../lib/geo';
+import WindyLayerPanel from '../components/WindyLayerPanel';
+import WindyMapForecastFrame from '../components/WindyMapForecastFrame';
+import { formatHa, polygonCentroid } from '../lib/geo';
 import { compassLabel } from '../lib/geo';
+import { acqTimestampMs, formatWibDateTime } from '../lib/format';
+import { isIndonesiaDemoAoi } from '../data/indonesiaAoi';
 
 const DAY_LABEL: Record<number, string> = { 1: '24 hrs', 2: '48 hrs', 3: '3 days', 5: '5 days' };
+
+const SIM_FRAME_MS = 3 * 3600 * 1000; // one time_slot — points appear/disappear per 3h bucket
+const SIM_TICK_MS = 1600; // real-time ms per animation step while playing — slow enough to actually watch, with room for the fade
 
 export default function FieldManagement() {
   const {
     aois, activeAoi, hotspots, inAoiHotspots, nearbyHotspots, dayCountsInAoi, dayCountsAll, hotspotsForDate,
-    status, error, fetchedAt, dayRange, hourRange, hourMode, customFrom, customTo, sources, weather,
+    status, error, fetchedAt, dayRange, hourRange, hourMode, customFrom, customTo, sources, weather, windGrid,
     createAoi, deleteAoi, renameAoi, setActiveAoiId, setDayRange, setHourRange, setHourMode, setCustomFrom, setCustomTo,
     setSources, refetch,
   } = useAoi();
+  const [simPlaying, setSimPlaying] = useState(false);
+  const [simFrameIndex, setSimFrameIndex] = useState(0);
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<'view' | 'draw'>(aois.length === 0 ? 'draw' : 'view');
@@ -32,6 +41,9 @@ export default function FieldManagement() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [module, setModule] = useState<ModuleId>('hotspot');
   const [showBoundary, setShowBoundary] = useState(true);
+  const [showSatelliteSmoke, setShowSatelliteSmoke] = useState(false);
+  const [showWindLayer, setShowWindLayer] = useState(false);
+  const [showWindyMapForecast, setShowWindyMapForecast] = useState(false);
   const [opacity, setOpacity] = useState(85);
   const [selectedDate, setSelectedDate] = useState<string | 'all'>('all');
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
@@ -51,11 +63,56 @@ export default function FieldManagement() {
   const dateCounts = includesNearby ? dayCountsAll : dayCountsInAoi;
   const timelineDates = useMemo(() => Object.keys(dateCounts).sort(), [dateCounts]);
 
+  // Every fetched day, annotated and scoped the same way mapHotspots is for a single
+  // date — needed once (not per animation tick) to bucket the whole window into 3h
+  // simulation frames.
+  const allWindowHotspots = useMemo(() => {
+    return timelineDates.flatMap((d) => {
+      const day = hotspotsForDate(d);
+      return includesNearby ? day : day.filter((h) => h.inAoi);
+    });
+  }, [timelineDates, hotspotsForDate, includesNearby]);
+
+  const simFrames = useMemo(() => {
+    const buckets = new Map<number, Hotspot[]>();
+    for (const h of allWindowHotspots) {
+      const key = Math.floor(acqTimestampMs(h.acqDate, h.acqTime) / SIM_FRAME_MS);
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = [];
+        buckets.set(key, bucket);
+      }
+      bucket.push(h);
+    }
+    return Array.from(buckets.keys())
+      .sort((a, b) => a - b)
+      .map((key) => ({ startMs: key * SIM_FRAME_MS, hotspots: buckets.get(key)! }));
+  }, [allWindowHotspots]);
+
+  // Frame set changed under us (new AOI, wider/narrower time window) — restart clean.
+  useEffect(() => {
+    setSimPlaying(false);
+    setSimFrameIndex(0);
+  }, [activeAoi?.id, dayRange]);
+
+  useEffect(() => {
+    if (!simPlaying || simFrames.length === 0) return;
+    const id = setInterval(() => {
+      setSimFrameIndex((i) => (i + 1) % simFrames.length);
+    }, SIM_TICK_MS);
+    return () => clearInterval(id);
+  }, [simPlaying, simFrames.length]);
+
   const mapHotspots = useMemo(() => {
+    if (simPlaying && simFrames.length > 0) {
+      return simFrames[simFrameIndex % simFrames.length]?.hotspots ?? [];
+    }
     if (selectedDate === 'all') return scopedHotspots;
     const day = hotspotsForDate(selectedDate); // annotated on demand, just that one day
     return includesNearby ? day : day.filter((h) => h.inAoi);
-  }, [scopedHotspots, selectedDate, hotspotsForDate, includesNearby]);
+  }, [simPlaying, simFrames, simFrameIndex, scopedHotspots, selectedDate, hotspotsForDate, includesNearby]);
+
+  const aoiCentroid = useMemo(() => (activeAoi ? polygonCentroid(activeAoi.ring) : null), [activeAoi]);
 
   const legendItems = useMemo(() => {
     if (module === 'impact') {
@@ -153,6 +210,25 @@ export default function FieldManagement() {
         </div>
       )}
 
+      {module === 'smoke' && (
+        <div className="mb-4">
+          <label className="flex items-start gap-2 text-xs font-semibold text-ink-soft cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showSatelliteSmoke}
+              onChange={() => setShowSatelliteSmoke((v) => !v)}
+              className="w-4 h-4 mt-0.5 accent-[#ec3013]"
+            />
+            <span>
+              Satellite smoke overlay (NASA GIBS)
+              <span className="block font-normal text-ink-faint mt-0.5 normal-case">
+                Real satellite-classified smoke/aerosol, same method BMKG uses — requires a single date selected below, not "All".
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
       <div className="mb-4">
         <label className="block text-xs font-semibold text-ink-soft mb-2">Time window</label>
         <div className="flex flex-wrap gap-1.5">
@@ -168,6 +244,24 @@ export default function FieldManagement() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-ink-soft mb-2">Time-lapse simulation</label>
+        <button
+          onClick={() => setSimPlaying((v) => !v)}
+          disabled={simFrames.length === 0}
+          className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            simPlaying ? 'bg-ink text-white' : 'bg-[#ec3013] hover:bg-[#c22910] text-white'
+          }`}
+        >
+          {simPlaying ? '⏸ Stop simulation' : '▶ Run simulation'}
+        </button>
+        <p className="text-[10.5px] text-ink-faint mt-1.5 leading-relaxed">
+          {simFrames.length > 0
+            ? `Steps through ${simFrames.length} satellite-pass windows (~3h each) across the fetched range — points appear and disappear per pass instead of accumulating.`
+            : 'No detections in the current window to animate.'}
+        </p>
       </div>
 
       <div className="mb-4">
@@ -244,10 +338,22 @@ export default function FieldManagement() {
         <input type="range" min={0} max={100} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="w-full accent-[#ec3013]" />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-ink-soft cursor-pointer">
+      <label className="flex items-center gap-2 text-sm text-ink-soft cursor-pointer mb-2">
         <input type="checkbox" checked={showBoundary} onChange={() => setShowBoundary((v) => !v)} className="w-4 h-4 accent-[#ec3013]" />
         AOI Boundary
       </label>
+
+      <label className="flex items-start gap-2 text-sm text-ink-soft cursor-pointer">
+        <input type="checkbox" checked={showWindLayer} onChange={() => setShowWindLayer((v) => !v)} className="w-4 h-4 mt-0.5 accent-[#ec3013]" />
+        <span>
+          Wind layer
+          <span className="block font-normal text-[11.5px] text-ink-faint mt-0.5">
+            Animated wind field over the visible map (Open-Meteo)
+          </span>
+        </span>
+      </label>
+
+      <WindyLayerPanel enabled={showWindyMapForecast} onToggle={() => setShowWindyMapForecast((v) => !v)} />
     </div>
   );
 
@@ -355,14 +461,30 @@ export default function FieldManagement() {
               ring={activeAoi.ring}
               hotspots={mapHotspots}
               module={module}
-              showBoundary={showBoundary}
+              showBoundary={showBoundary && !isIndonesiaDemoAoi(activeAoi.name)}
               opacity={opacity}
-              weather={weather}
+              windGrid={windGrid}
+              satelliteSmokeDate={showSatelliteSmoke && selectedDate !== 'all' ? selectedDate : null}
+              showWindLayer={showWindLayer}
+              animate={simPlaying}
             />
+            {showWindyMapForecast && aoiCentroid && (
+              <WindyMapForecastFrame center={aoiCentroid} onClose={() => setShowWindyMapForecast(false)} />
+            )}
             <div className="hidden sm:block absolute top-4 right-4 z-[400]">
               <Legend title={module === 'impact' ? 'Impact Radius (per point)' : module === 'burned' ? 'Estimated Footprint' : module === 'smoke' ? 'Smoke Estimate' : 'Fire Confidence'} items={legendItems} />
             </div>
             <div className="absolute top-4 left-4 right-4 sm:right-auto z-[400] flex flex-col gap-2">
+              {simPlaying && simFrames[simFrameIndex % simFrames.length] && (
+                <div className="bg-ink text-white rounded-xl shadow px-3 py-1.5 text-xs font-bold w-fit tabular-nums">
+                  ▶ {formatWibDateTime(simFrames[simFrameIndex % simFrames.length].startMs)}–
+                  {formatWibDateTime(simFrames[simFrameIndex % simFrames.length].startMs + SIM_FRAME_MS)} WIB
+                  <span className="font-normal text-white/70 ml-2">
+                    frame {(simFrameIndex % simFrames.length) + 1}/{simFrames.length} ·{' '}
+                    {simFrames[simFrameIndex % simFrames.length].hotspots.length} pts
+                  </span>
+                </div>
+              )}
               {status === 'loading' && (
                 <div className="bg-surface rounded-xl shadow border border-line px-3 py-1.5 text-xs font-semibold text-ink-soft w-fit">Fetching live hotspots…</div>
               )}
