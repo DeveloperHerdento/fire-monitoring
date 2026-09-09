@@ -2,9 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { Aoi, Hotspot, LatLng, SourceId } from '../types';
 import { annotateHotspots, countByDate, polygonAreaHa, polygonBbox, polygonCentroid } from '../lib/geo';
 import { acqTimestampMs, wibDateAndMinute } from '../lib/format';
-import { fetchFires, fetchWeather, type Weather } from '../lib/api';
+import { fetchFires, fetchWeather, fetchWeatherGrid, type Weather } from '../lib/api';
+import type { WindSample } from '../lib/geo';
 import { loadActiveAoiId, loadAois, saveActiveAoiId, saveAois } from '../lib/storage';
 import { isKalimantanDemoAoi } from '../data/kalimantanAoi';
+import { isIndonesiaDemoAoi } from '../data/indonesiaAoi';
 import kalimantanSeed from '../data/kalimantanSeed.json';
 import type { FiresResponse } from '../types';
 
@@ -62,11 +64,25 @@ interface AoiContextValue {
   refetch: () => void;
   centroid: LatLng | null;
   weather: Weather | null;
+  windGrid: WindSample[];
 }
 
 const AoiContext = createContext<AoiContextValue | null>(null);
 
 type DemoSeed = FiresResponse & { demoRange?: { from: string; to: string } };
+
+// Indonesia demo seed is ~18MB (68k points) — fetched lazily from /public on first
+// use instead of statically imported, so it never bloats the main JS bundle.
+let indonesiaSeedPromise: Promise<DemoSeed> | null = null;
+function loadIndonesiaSeed(): Promise<DemoSeed> {
+  if (!indonesiaSeedPromise) {
+    indonesiaSeedPromise = fetch('/data/indonesia-seed.json').then((r) => {
+      if (!r.ok) throw new Error(`Failed to load Indonesia demo dataset (${r.status})`);
+      return r.json();
+    });
+  }
+  return indonesiaSeedPromise;
+}
 
 /** Slices the frozen Kalimantan dataset down to the requested day-range window, same as a live FIRMS query would. */
 function filterDemoHotspots(seed: DemoSeed, dayRange: number, endDate: string | null): Hotspot[] {
@@ -151,7 +167,7 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
       setRawHotspots([]);
       return;
     }
-    if (activeAoi.isDemo || isKalimantanDemoAoi(activeAoi.name)) {
+    if (isKalimantanDemoAoi(activeAoi.name)) {
       // Frozen dataset (real FIRMS detections, last ~5 days) so the demo doesn't
       // depend on live FIRMS availability/rate limits. Sliced to the selected
       // day-range window (default: latest day only) to keep the map light.
@@ -162,6 +178,23 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
       setRawHotspots(filterDemoHotspots(seed, dayRange, endDate));
       setFetchedAt(seed.fetchedAt);
       setStatus('idle');
+      return;
+    }
+    if (isIndonesiaDemoAoi(activeAoi.name)) {
+      // Same idea as the Kalimantan seed above, but fetched on demand since the
+      // Indonesia-wide dataset is much larger (~68k points across all of Indonesia).
+      setStatus('loading');
+      setError(null);
+      loadIndonesiaSeed()
+        .then((seed) => {
+          setRawHotspots(filterDemoHotspots(seed, dayRange, endDate));
+          setFetchedAt(seed.fetchedAt);
+          setStatus('idle');
+        })
+        .catch((err) => {
+          setError(err.message || 'Failed to load Indonesia demo dataset');
+          setStatus('error');
+        });
       return;
     }
     setStatus('loading');
@@ -241,6 +274,41 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
     };
   }, [centroid?.[0], centroid?.[1]]);
 
+  // Wind sampled per grid cell across whatever hotspots are currently shown, not
+  // one value for the whole AOI — a single centroid wind was fine over Kalimantan
+  // but visibly wrong once the AOI spans an area as wide as all of Indonesia.
+  const [windGrid, setWindGrid] = useState<WindSample[]>([]);
+  useEffect(() => {
+    if (hotspots.length === 0) {
+      setWindGrid([]);
+      return;
+    }
+    const CELL_DEG = 2;
+    const MAX_CELLS = 40;
+    const cells = new Map<string, [number, number]>();
+    for (const h of hotspots) {
+      const gLat = Math.round(h.lat / CELL_DEG) * CELL_DEG;
+      const gLng = Math.round(h.lng / CELL_DEG) * CELL_DEG;
+      const key = `${gLat},${gLng}`;
+      if (!cells.has(key)) cells.set(key, [gLat, gLng]);
+      if (cells.size >= MAX_CELLS) break;
+    }
+    let cancelled = false;
+    fetchWeatherGrid(Array.from(cells.values()))
+      .then((rows) => {
+        if (cancelled) return;
+        const clean: WindSample[] = rows
+          .filter((r) => r.windSpeedKmh != null && r.windDirectionDeg != null)
+          .map((r) => ({ lat: r.lat, lng: r.lng, windSpeedKmh: r.windSpeedKmh as number, windDirectionDeg: r.windDirectionDeg as number }));
+        setWindGrid(clean);
+      })
+      .catch(() => !cancelled && setWindGrid([]));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotspots]);
+
   const createAoi = useCallback((name: string, ring: LatLng[]): Aoi => {
     const aoi: Aoi = {
       id: `aoi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -303,6 +371,7 @@ export function AoiProvider({ children }: { children: React.ReactNode }) {
     refetch,
     centroid,
     weather,
+    windGrid,
   };
 
   return <AoiContext.Provider value={value}>{children}</AoiContext.Provider>;

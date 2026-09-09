@@ -1,5 +1,6 @@
 import type { Aoi } from '../types';
 import { KALIMANTAN_DEMO_NAME, KALIMANTAN_RING, isKalimantanDemoAoi } from '../data/kalimantanAoi';
+import { INDONESIA_DEMO_NAME, INDONESIA_RING, isIndonesiaDemoAoi } from '../data/indonesiaAoi';
 import { polygonAreaHa } from './geo';
 
 const AOI_KEY = 'fm.aois.v1';
@@ -12,6 +13,17 @@ function kalimantanAoi(): Aoi {
     createdAt: new Date().toISOString(),
     ring: KALIMANTAN_RING,
     areaHa: polygonAreaHa(KALIMANTAN_RING),
+    isDemo: true,
+  };
+}
+
+function indonesiaAoi(): Aoi {
+  return {
+    id: `aoi_indonesia_${Date.now()}`,
+    name: INDONESIA_DEMO_NAME,
+    createdAt: new Date().toISOString(),
+    ring: INDONESIA_RING,
+    areaHa: polygonAreaHa(INDONESIA_RING),
     isDemo: true,
   };
 }
@@ -33,6 +45,13 @@ export function loadAois(): Aoi[] {
     );
   } else {
     aois = [kalimantanAoi(), ...aois];
+  }
+  if (aois.some((a) => isIndonesiaDemoAoi(a.name))) {
+    aois = aois.map((a) =>
+      isIndonesiaDemoAoi(a.name) ? { ...a, ring: INDONESIA_RING, areaHa: polygonAreaHa(INDONESIA_RING), isDemo: true } : a
+    );
+  } else {
+    aois = [...aois, indonesiaAoi()];
   }
   return aois;
 }
