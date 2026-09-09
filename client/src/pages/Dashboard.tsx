@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAoi } from '../state/AoiContext';
+import { isIndonesiaDemoAoi } from '../data/indonesiaAoi';
 import StatCard from '../components/StatCard';
 import FireMapCanvas from '../components/FireMapCanvas';
 import Legend from '../components/Legend';
@@ -80,7 +81,14 @@ export default function Dashboard() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 mb-8">
         <div className="relative h-[280px] sm:h-[360px] lg:h-[420px] rounded-2xl overflow-hidden border border-line shadow-sm">
-          <FireMapCanvas ring={activeAoi.ring} hotspots={inAoiHotspots} module="hotspot" showBoundary opacity={90} interactive={false} />
+          <FireMapCanvas
+            ring={activeAoi.ring}
+            hotspots={inAoiHotspots}
+            module="hotspot"
+            showBoundary={!isIndonesiaDemoAoi(activeAoi.name)}
+            opacity={90}
+            interactive={false}
+          />
           <div className="absolute top-3 right-3 z-[400]">
             <Legend title="Fire Confidence" items={[{ color: '#ae1800', label: 'HIGH' }, { color: '#ec3013', label: 'MEDIUM' }, { color: '#ffc4b8', label: 'LOW' }]} />
           </div>
